@@ -147,6 +147,7 @@ The Empathy Engine will evolve to become an AI-powered HR companion that:
 ---
 
 *"Because behind every employee question is a human being seeking understanding, support, and connection."*
+*"Because behind every employee question is a human being seeking understanding, support, and connection."*
 
 # 🧠 Empathy Engine Work Stream
 
