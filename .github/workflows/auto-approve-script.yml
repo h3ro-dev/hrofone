@@ -1,0 +1,62 @@
+name: Script Auto Approve
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  approve:
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.title, 'automation') ||
+      contains(github.event.pull_request.title, 'Auto')
+    
+    steps:
+      - name: Auto approve using GitHub Script
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_BOT_TOKEN }}
+          script: |
+            // Approve the PR
+            const result = await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              event: "APPROVE",
+              body: "🤖 Auto-approved by GitHub Script automation"
+            });
+            
+            console.log("Approval created:", result.data.state);
+            
+            // Enable auto-merge
+            try {
+              await github.rest.pulls.updateBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number
+              });
+              
+              const mergeResult = await github.graphql(`
+                mutation($prId: ID\!) {
+                  enablePullRequestAutoMerge(input: {
+                    pullRequestId: $prId,
+                    mergeMethod: SQUASH
+                  }) {
+                    pullRequest {
+                      autoMergeRequest {
+                        enabledAt
+                      }
+                    }
+                  }
+                }
+              `, {
+                prId: context.payload.pull_request.node_id
+              });
+              
+              console.log("Auto-merge enabled");
+            } catch (error) {
+              console.log("Could not enable auto-merge:", error.message);
+            }
