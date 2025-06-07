@@ -1,0 +1,29 @@
+name: Manual Approval Trigger
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to approve'
+        required: true
+        type: number
+
+permissions:
+  pull-requests: write
+
+jobs:
+  approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Approve specified PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ github.event.inputs.pr_number }},
+              event: "APPROVE",
+              body: "✅ Manually triggered approval"
+            });

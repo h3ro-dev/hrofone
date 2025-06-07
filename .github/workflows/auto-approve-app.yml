@@ -1,0 +1,54 @@
+name: Auto Approve PRs
+
+# Use pull_request_target to run in base branch context with access to secrets
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    # Only run if it's an automation PR or has specific labels
+    if: |
+      contains(github.event.pull_request.title, 'automation') ||
+      contains(github.event.pull_request.title, 'Auto') ||
+      contains(github.event.pull_request.title, '🚀') ||
+      contains(github.event.pull_request.title, '🔄') ||
+      github.event.pull_request.user.login == 'github-actions[bot]' ||
+      github.event.pull_request.user.login == 'dependabot[bot]'
+    
+    steps:
+      - name: Generate installation token
+        id: generate_token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+        continue-on-error: true
+
+      - name: Approve PR (with GitHub App if available)
+        if: steps.generate_token.outputs.token \!= ''
+        uses: hmarr/auto-approve-action@v4
+        with:
+          github-token: ${{ steps.generate_token.outputs.token }}
+          review-message: "🤖 Auto-approved by GitHub App"
+
+      - name: Approve PR (fallback to PAT)
+        if: steps.generate_token.outputs.token == ''
+        uses: hmarr/auto-approve-action@v4
+        with:
+          github-token: ${{ secrets.GH_BOT_TOKEN }}
+          review-message: "🤖 Auto-approved by automation bot"
+
+      - name: Enable auto-merge
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --auto \
+            --squash \
+            --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN || secrets.GITHUB_TOKEN }}

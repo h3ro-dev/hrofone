@@ -1,0 +1,194 @@
+{
+  "employment-law": [
+    {
+      "id": "emp-1",
+      "description": "Employee handbook is up-to-date and distributed",
+      "required": true,
+      "category": "documentation"
+    },
+    {
+      "id": "emp-2",
+      "description": "At-will employment statements in place",
+      "required": true,
+      "category": "documentation"
+    },
+    {
+      "id": "emp-3",
+      "description": "Proper employee classification (exempt/non-exempt)",
+      "required": true,
+      "category": "classification"
+    },
+    {
+      "id": "emp-4",
+      "description": "Required workplace posters displayed",
+      "required": true,
+      "category": "compliance"
+    },
+    {
+      "id": "emp-5",
+      "description": "Anti-harassment policy and training",
+      "required": true,
+      "category": "policy"
+    }
+  ],
+  "payroll-tax": [
+    {
+      "id": "pay-1",
+      "description": "W-4 forms collected and current",
+      "required": true,
+      "category": "documentation"
+    },
+    {
+      "id": "pay-2",
+      "description": "Payroll taxes filed on time",
+      "required": true,
+      "category": "filing"
+    },
+    {
+      "id": "pay-3",
+      "description": "Overtime calculations correct",
+      "required": true,
+      "category": "calculation"
+    },
+    {
+      "id": "pay-4",
+      "description": "State and local tax compliance",
+      "required": true,
+      "category": "filing"
+    },
+    {
+      "id": "pay-5",
+      "description": "Year-end W-2/1099 processing",
+      "required": true,
+      "category": "reporting"
+    }
+  ],
+  "benefits": [
+    {
+      "id": "ben-1",
+      "description": "Benefits plan documents current",
+      "required": true,
+      "category": "documentation"
+    },
+    {
+      "id": "ben-2",
+      "description": "COBRA notifications provided",
+      "required": true,
+      "category": "notification"
+    },
+    {
+      "id": "ben-3",
+      "description": "ACA compliance (if applicable)",
+      "required": false,
+      "category": "compliance"
+    },
+    {
+      "id": "ben-4",
+      "description": "Summary Plan Descriptions distributed",
+      "required": true,
+      "category": "documentation"
+    },
+    {
+      "id": "ben-5",
+      "description": "ERISA compliance",
+      "required": true,
+      "category": "compliance"
+    }
+  ],
+  "workplace-safety": [
+    {
+      "id": "safe-1",
+      "description": "OSHA Form 300 maintained",
+      "required": true,
+      "category": "recordkeeping"
+    },
+    {
+      "id": "safe-2",
+      "description": "Written safety program",
+      "required": false,
+      "category": "documentation"
+    },
+    {
+      "id": "safe-3",
+      "description": "Emergency action plan",
+      "required": true,
+      "category": "planning"
+    },
+    {
+      "id": "safe-4",
+      "description": "Safety training records",
+      "required": true,
+      "category": "training"
+    },
+    {
+      "id": "safe-5",
+      "description": "Workers' compensation insurance",
+      "required": true,
+      "category": "insurance"
+    }
+  ],
+  "eeo": [
+    {
+      "id": "eeo-1",
+      "description": "EEO-1 report filed (if required)",
+      "required": false,
+      "category": "reporting"
+    },
+    {
+      "id": "eeo-2",
+      "description": "Non-discrimination policies",
+      "required": true,
+      "category": "policy"
+    },
+    {
+      "id": "eeo-3",
+      "description": "Job postings include EEO statement",
+      "required": true,
+      "category": "recruitment"
+    },
+    {
+      "id": "eeo-4",
+      "description": "Reasonable accommodation process",
+      "required": true,
+      "category": "process"
+    },
+    {
+      "id": "eeo-5",
+      "description": "Hiring records retention",
+      "required": true,
+      "category": "recordkeeping"
+    }
+  ],
+  "data-privacy": [
+    {
+      "id": "priv-1",
+      "description": "Employee data protection policy",
+      "required": true,
+      "category": "policy"
+    },
+    {
+      "id": "priv-2",
+      "description": "Data breach response plan",
+      "required": true,
+      "category": "planning"
+    },
+    {
+      "id": "priv-3",
+      "description": "Background check compliance",
+      "required": true,
+      "category": "compliance"
+    },
+    {
+      "id": "priv-4",
+      "description": "Personnel file security",
+      "required": true,
+      "category": "security"
+    },
+    {
+      "id": "priv-5",
+      "description": "State privacy law compliance",
+      "required": false,
+      "category": "compliance"
+    }
+  ]
+}
