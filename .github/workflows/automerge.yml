@@ -1,28 +1,25 @@
-name: Enable Auto-Merge
+name: Automerge
 
 on:
   pull_request_target:
-    types:
-      - opened
-      - synchronize
-      - reopened
+    types: [opened, synchronize, reopened]
 
 permissions:
   pull-requests: write
   contents: write
 
 jobs:
-  approve-and-enable:
+  automerge:
     runs-on: ubuntu-latest
     steps:
       - name: Auto-approve pull request
         uses: hmarr/auto-approve-action@v4
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Enable auto-merge for PR
         uses: peter-evans/enable-pull-request-automerge@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           pull-request-number: ${{ github.event.pull_request.number }}
           merge-method: squash
