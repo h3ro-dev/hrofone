@@ -1,0 +1,213 @@
+# Employee Onboarding Workflow
+# Automates the entire onboarding process from offer acceptance to first day
+
+metadata:
+  name: Employee Onboarding Magic
+  version: 1.0.0
+  description: Complete employee onboarding automation
+  category: HR
+  estimatedTime: 2 hours → 10 minutes
+  tags: [onboarding, hr, employee, automation]
+
+triggers:
+  - type: webhook
+    source: ats_system
+    event: offer_accepted
+  - type: manual
+    requiredFields: [employee_email, start_date, role, department]
+
+variables:
+  employee:
+    email: ${trigger.employee_email}
+    name: ${trigger.employee_name}
+    role: ${trigger.role}
+    department: ${trigger.department}
+    startDate: ${trigger.start_date}
+    manager: ${trigger.reporting_manager}
+
+steps:
+  # Step 1: Create Employee Profile
+  - id: create_profile
+    name: Create Employee Profile
+    action: database.create
+    params:
+      table: employees
+      data:
+        email: ${employee.email}
+        name: ${employee.name}
+        role: ${employee.role}
+        department: ${employee.department}
+        status: onboarding
+        startDate: ${employee.startDate}
+    onError: notify_hr
+
+  # Step 2: Provision Accounts (Parallel)
+  - id: provision_accounts
+    name: Provision Digital Accounts
+    parallel:
+      - action: google.createAccount
+        params:
+          email: ${employee.email}
+          groups: [${employee.department}, all-staff]
+      
+      - action: slack.invite
+        params:
+          email: ${employee.email}
+          channels: 
+            - "#general"
+            - "#${employee.department}"
+            - "#welcome"
+      
+      - action: github.addUser
+        condition: ${employee.role.technical == true}
+        params:
+          username: ${employee.email.split('@')[0]}
+          teams: [${employee.department}]
+
+  # Step 3: Generate Documents
+  - id: generate_documents
+    name: Generate Onboarding Documents
+    parallel:
+      - action: document.generate
+        params:
+          template: welcome_packet
+          data: ${employee}
+          output: ${employee.name}_welcome_packet.pdf
+      
+      - action: document.generate
+        params:
+          template: it_setup_guide
+          data: ${employee}
+          output: ${employee.name}_it_guide.pdf
+      
+      - action: document.generate
+        params:
+          template: benefits_enrollment
+          data: ${employee}
+          output: ${employee.name}_benefits.pdf
+
+  # Step 4: Schedule Meetings
+  - id: schedule_meetings
+    name: Schedule Onboarding Meetings
+    sequential:
+      - action: calendar.schedule
+        params:
+          title: "Welcome to the team, ${employee.name}!"
+          attendees: [${employee.email}, ${employee.manager}]
+          duration: 30
+          date: ${employee.startDate}
+          time: "9:00 AM"
+      
+      - action: calendar.schedule
+        params:
+          title: "IT Setup & Security Training"
+          attendees: [${employee.email}, it@company.com]
+          duration: 60
+          date: ${employee.startDate}
+          time: "10:00 AM"
+      
+      - action: calendar.schedule
+        params:
+          title: "Benefits Enrollment Session"
+          attendees: [${employee.email}, hr@company.com]
+          duration: 45
+          date: ${date.add(employee.startDate, 1, 'days')}
+          time: "2:00 PM"
+
+  # Step 5: Assign Equipment
+  - id: assign_equipment
+    name: Request Equipment
+    condition: ${employee.role.requires_equipment == true}
+    action: inventory.request
+    params:
+      employeeId: ${create_profile.output.id}
+      items:
+        - laptop: 
+            type: ${employee.role.laptop_type || 'standard'}
+        - monitor:
+            count: ${employee.role.monitor_count || 1}
+        - accessories: ['mouse', 'keyboard', 'headset']
+      deliveryDate: ${date.subtract(employee.startDate, 2, 'days')}
+
+  # Step 6: Create Onboarding Checklist
+  - id: create_checklist
+    name: Create Personalized Checklist
+    action: task.createList
+    params:
+      assignee: ${employee.email}
+      dueDate: ${date.add(employee.startDate, 7, 'days')}
+      tasks:
+        - "Complete I-9 verification"
+        - "Set up direct deposit"
+        - "Review and sign employee handbook"
+        - "Complete security training"
+        - "Set up 2FA on all accounts"
+        - "Update profile photo"
+        - "Join team Slack channels"
+        - "Schedule 1:1 with manager"
+
+  # Step 7: Notify Stakeholders
+  - id: notify_stakeholders
+    name: Send Notifications
+    parallel:
+      - action: email.send
+        params:
+          to: ${employee.email}
+          template: welcome_email
+          data: 
+            name: ${employee.name}
+            startDate: ${employee.startDate}
+            checklist_link: ${create_checklist.output.url}
+      
+      - action: slack.message
+        params:
+          channel: "#${employee.department}"
+          message: "🎉 Please welcome ${employee.name} who will be joining us as ${employee.role} on ${employee.startDate}!"
+      
+      - action: email.send
+        params:
+          to: ${employee.manager}
+          template: manager_onboarding_notice
+          data:
+            employee: ${employee}
+            checklist: ${create_checklist.output.url}
+
+  # Step 8: Set Reminders
+  - id: set_reminders
+    name: Schedule Follow-up Reminders
+    sequential:
+      - action: reminder.create
+        params:
+          date: ${date.add(employee.startDate, 3, 'days')}
+          assignee: ${employee.manager}
+          message: "Check in with ${employee.name} - Day 3 onboarding"
+      
+      - action: reminder.create
+        params:
+          date: ${date.add(employee.startDate, 7, 'days')}
+          assignee: hr@company.com
+          message: "Week 1 onboarding check - ${employee.name}"
+      
+      - action: reminder.create
+        params:
+          date: ${date.add(employee.startDate, 30, 'days')}
+          assignee: ${employee.manager}
+          message: "30-day review for ${employee.name}"
+
+notifications:
+  onSuccess:
+    - type: email
+      to: [hr@company.com, ${employee.manager}]
+      subject: "Onboarding workflow completed for ${employee.name}"
+  
+  onError:
+    - type: slack
+      channel: "#hr-alerts"
+      message: "⚠️ Onboarding workflow error for ${employee.name}: ${error.message}"
+
+analytics:
+  track:
+    - workflow_duration
+    - steps_completed
+    - error_rate
+  report_to: hr-analytics
