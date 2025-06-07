@@ -1,0 +1,264 @@
+# Time-Off Request Workflow
+# Automates PTO requests, approvals, and calendar updates
+
+metadata:
+  name: Time-Off Request Wizard
+  version: 1.0.0
+  description: Automated time-off request processing with smart approvals
+  category: HR
+  estimatedTime: 48 hours → 5 minutes
+  tags: [pto, time-off, vacation, hr, automation]
+
+triggers:
+  - type: form_submission
+    source: employee_portal
+    form: time_off_request
+  - type: slack_command
+    command: /time-off
+  - type: email
+    subject_pattern: "Time Off Request"
+
+variables:
+  request:
+    employeeId: ${trigger.employee_id}
+    employeeName: ${trigger.employee_name}
+    employeeEmail: ${trigger.employee_email}
+    managerId: ${trigger.manager_id}
+    managerEmail: ${trigger.manager_email}
+    startDate: ${trigger.start_date}
+    endDate: ${trigger.end_date}
+    type: ${trigger.request_type || 'vacation'}
+    reason: ${trigger.reason}
+    coverageArranged: ${trigger.coverage_arranged}
+    dayCount: ${date.businessDays(trigger.start_date, trigger.end_date)}
+
+steps:
+  # Step 1: Validate Request
+  - id: validate_request
+    name: Validate Time-Off Request
+    parallel:
+      - action: hr.checkBalance
+        params:
+          employeeId: ${request.employeeId}
+          type: ${request.type}
+          daysRequested: ${request.dayCount}
+      
+      - action: calendar.checkConflicts
+        params:
+          employeeId: ${request.employeeId}
+          startDate: ${request.startDate}
+          endDate: ${request.endDate}
+      
+      - action: hr.checkBlackoutDates
+        params:
+          dates: 
+            start: ${request.startDate}
+            end: ${request.endDate}
+          department: ${employee.department}
+
+  # Step 2: Auto-approve if eligible
+  - id: check_auto_approval
+    name: Check Auto-Approval Eligibility
+    action: rules.evaluate
+    params:
+      rules:
+        - name: short_notice_check
+          condition: ${date.daysBetween(date.today(), request.startDate) >= 14}
+        - name: balance_check
+          condition: ${validate_request.outputs[0].remainingBalance >= 0}
+        - name: no_conflicts
+          condition: ${validate_request.outputs[1].conflicts.length === 0}
+        - name: coverage_arranged
+          condition: ${request.coverageArranged === true}
+        - name: duration_check
+          condition: ${request.dayCount <= 5}
+
+  # Step 3: Create approval request (if not auto-approved)
+  - id: create_approval
+    name: Create Approval Request
+    condition: ${check_auto_approval.output.allRulesPassed !== true}
+    action: approval.create
+    params:
+      approver: ${request.managerEmail}
+      type: time_off_request
+      data: ${request}
+      deadline: ${date.add(date.today(), 2, 'days')}
+      escalationEmail: hr@company.com
+
+  # Step 4: Send approval notification
+  - id: notify_approval
+    name: Send Approval Request
+    condition: ${check_auto_approval.output.allRulesPassed !== true}
+    parallel:
+      - action: email.send
+        params:
+          to: ${request.managerEmail}
+          template: time_off_approval_request
+          data:
+            employee: ${request.employeeName}
+            dates: "${request.startDate} to ${request.endDate}"
+            days: ${request.dayCount}
+            reason: ${request.reason}
+            approvalLink: ${create_approval.output.approvalUrl}
+      
+      - action: slack.message
+        params:
+          to: ${request.managerId}
+          text: "🏖️ ${request.employeeName} has requested time off from ${request.startDate} to ${request.endDate}"
+          actions:
+            - type: button
+              text: Approve
+              value: approve_${create_approval.output.id}
+            - type: button
+              text: Deny
+              value: deny_${create_approval.output.id}
+
+  # Step 5: Wait for approval (skip if auto-approved)
+  - id: wait_for_approval
+    name: Wait for Manager Approval
+    condition: ${check_auto_approval.output.allRulesPassed !== true}
+    action: approval.wait
+    params:
+      approvalId: ${create_approval.output.id}
+      timeout: 48h
+      onTimeout: escalate_to_hr
+
+  # Step 6: Process approved request
+  - id: process_approval
+    name: Process Approved Request
+    condition: ${check_auto_approval.output.allRulesPassed === true || wait_for_approval.output.status === 'approved'}
+    parallel:
+      # Update PTO balance
+      - action: hr.updateBalance
+        params:
+          employeeId: ${request.employeeId}
+          type: ${request.type}
+          amount: -${request.dayCount}
+          effectiveDate: ${request.startDate}
+      
+      # Add to calendar
+      - action: calendar.createEvent
+        params:
+          title: "${request.employeeName} - Out of Office"
+          startDate: ${request.startDate}
+          endDate: ${request.endDate}
+          allDay: true
+          calendars: 
+            - ${request.employeeEmail}
+            - ${request.managerEmail}
+            - team_calendar@company.com
+      
+      # Update Slack status
+      - action: slack.updateStatus
+        params:
+          userId: ${request.employeeId}
+          emoji: ":palm_tree:"
+          text: "Out of office"
+          startDate: ${request.startDate}
+          endDate: ${request.endDate}
+      
+      # Set email auto-responder
+      - action: email.setAutoResponder
+        params:
+          email: ${request.employeeEmail}
+          startDate: ${request.startDate}
+          endDate: ${request.endDate}
+          subject: "Out of Office: ${request.employeeName}"
+          message: |
+            Hello,
+            
+            I'm currently out of office from ${request.startDate} to ${request.endDate}.
+            I'll respond to your email when I return.
+            
+            For urgent matters, please contact ${request.managerEmail}.
+            
+            Best regards,
+            ${request.employeeName}
+
+  # Step 7: Send confirmations
+  - id: send_confirmations
+    name: Send Confirmation Messages
+    condition: ${process_approval.success === true}
+    parallel:
+      - action: email.send
+        params:
+          to: ${request.employeeEmail}
+          template: time_off_approved
+          data:
+            dates: "${request.startDate} to ${request.endDate}"
+            days: ${request.dayCount}
+            remainingBalance: ${process_approval.outputs[0].newBalance}
+      
+      - action: slack.message
+        params:
+          to: ${request.employeeId}
+          text: "✅ Your time off request has been approved! Enjoy your time off from ${request.startDate} to ${request.endDate} 🌴"
+
+  # Step 8: Handle denial
+  - id: handle_denial
+    name: Handle Denied Request
+    condition: ${wait_for_approval.output.status === 'denied'}
+    parallel:
+      - action: email.send
+        params:
+          to: ${request.employeeEmail}
+          template: time_off_denied
+          data:
+            dates: "${request.startDate} to ${request.endDate}"
+            reason: ${wait_for_approval.output.denialReason}
+            managerName: ${request.managerName}
+      
+      - action: slack.message
+        params:
+          to: ${request.employeeId}
+          text: "❌ Your time off request for ${request.startDate} to ${request.endDate} was not approved. Please check your email for details."
+
+  # Step 9: Set return reminders
+  - id: set_return_reminders
+    name: Schedule Return Reminders
+    condition: ${process_approval.success === true}
+    sequential:
+      - action: reminder.create
+        params:
+          date: ${date.subtract(request.endDate, 1, 'days')}
+          to: ${request.employeeEmail}
+          message: "Reminder: You're returning to work tomorrow! 🏢"
+      
+      - action: task.create
+        params:
+          assignee: ${request.managerEmail}
+          dueDate: ${date.add(request.endDate, 1, 'days')}
+          title: "Welcome back ${request.employeeName}"
+          description: "Check in with ${request.employeeName} on their first day back"
+
+notifications:
+  onSuccess:
+    - type: webhook
+      url: ${env.ANALYTICS_WEBHOOK}
+      data:
+        event: time_off_processed
+        employee: ${request.employeeId}
+        days: ${request.dayCount}
+        autoApproved: ${check_auto_approval.output.allRulesPassed}
+  
+  onError:
+    - type: email
+      to: hr@company.com
+      subject: "Time-off workflow error for ${request.employeeName}"
+      includeErrorDetails: true
+
+analytics:
+  track:
+    - workflow_duration
+    - auto_approval_rate
+    - average_approval_time
+    - denial_rate
+  report_to: hr-analytics
+
+settings:
+  retryPolicy:
+    maxAttempts: 3
+    backoff: exponential
+  notifications:
+    channels: [email, slack]
+  timezone: ${company.timezone || 'America/New_York'}
