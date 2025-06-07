@@ -8,9 +8,9 @@
 export const colors = {
   // Primary - Utlyze Blue
   primary: {
-    50: '#e6efff',
-    100: '#b3ceff',
-    200: '#80adff',
+    50: '#eff6ff',
+    100: '#dbeafe',
+    200: '#bfdbfe',
     300: '#4d8cff',
     400: '#1a6bff',
     500: '#4169E1', // Main brand color
